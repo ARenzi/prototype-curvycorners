@@ -19,6 +19,7 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
+
 */
 
 
@@ -372,7 +373,7 @@ var curvyCorners = new function() {
 										}
 									);
 								}
-							)
+							);
 							
 							curvyCorners.applyCorners( settings, elem );
 						}
@@ -529,29 +530,6 @@ var curvyCorners = new function() {
 			'setRedrawList'	: function( list ) {
 				redrawList = list;
 			},
-// 			'adjust'	: function( obj, styleKey, styleValue ) {
-// 				if ( ! redrawList ) {
-// 					throw curvyCorners.newError( 'curvyCorners.adjust() has nothing to adjust.' );
-// 				}
-// 				else {
-// 					var stob = $H();
-// 					stob.set( styleKey, styleValue );
-// 					
-// 					redrawList.each(
-// 						function( el ) {
-// 							if ( obj === $( el.get( 'nodeId' ) ) ) {
-// 								var new_el = el.get( 'copy' ).clone( false );
-// 								
-// 								new_el.setStyle( stob.toObject() );
-// 								el.set(
-// 									'copy',
-// 									new_el
-// 								);
-// 							}
-// 						}
-// 					);
-// 				}
-// 			},
 			'handleWinResize'	: function() {
 				if ( ! blockRedraw ) {
 					curvyCorners.redraw();
@@ -572,9 +550,7 @@ var curvyCorners = new function() {
 	);
 	
 	return ret.toObject();
-}
-
-// curvyCorners object (can be called directly)
+};
 
 var curvyObject = Class.create(
 	{
@@ -1705,7 +1681,7 @@ var curvyUtils = new function () {
 			return color;
 		}
 	};
-}
+};
 
 curvyCorners.versionCheck();
 
