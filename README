@@ -1,0 +1,32 @@
+DESCRIPTION
+
+Rewritten version of Cameron Cooke's curvycorners.js
+
+	http://www.curvycorners.net
+
+for those who have the Prototype framework
+
+	http://www.prototypejs.org/
+	
+already installed.
+	
+REQUIREMENTS
+
+	- prototype.js version >= 1.6.1 from http://www.prototypejs.org/
+
+USAGE
+
+So to make prototype-curvycorners work with any major browser simply add the
+following CSS declarations and it should be good to go...
+
+.round {
+  -webkit-border-radius: 3px;
+  -moz-border-radius: 3px;
+}
+
+NB at present you must (for Opera's sake) include these styles in
+the page itself.
+
+You can use an element method instead:
+
+$('myDiv').corner( { 'tr' : 20, 'tl' : 5, 'br' : 20, 'bl' : 30 } );

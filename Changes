@@ -1,0 +1,8 @@
+0.01_02 2009-12-08
+	Added README
+	Added Changes
+	Added support for padding and margin
+	Replaced adjust with a setStyle wrapper
+
+0.01_01	2009-12-01
+	Initial version

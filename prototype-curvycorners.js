@@ -19,40 +19,6 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
-
-HISTORY
-	
-0.01_01	2009-12-01
-	Initial version
-
-DESCRIPTION
-
-Rewritten version of Cameron Cooke's curvycorners.js
-
-	http://www.curvycorners.net
-
-for those who have the Prototype framework
-
-	http://www.prototypejs.org/
-	
-already installed.
-	
-REQUIREMENTS
-
-	- prototype.js version >= 1.6.1 from http://www.prototypejs.org/
-
-USAGE
-
-So to make curvycorners work with any major browser simply add the following
-CSS declarations and it should be good to go...
-
-.round {
-  -webkit-border-radius: 3ex;
-  -moz-border-radius: 3ex;
-}
-
-NB at present you must (for Opera's sake) include these styles in
-the page itself.
 */
 
 
@@ -557,29 +523,35 @@ var curvyCorners = new function() {
 				
 				blockRedraw = oldBlockRedraw;
 			},
-			'adjust'	: function( obj, styleKey, styleValue ) {
-				if ( ! redrawList ) {
-					throw curvyCorners.newError( 'curvyCorners.adjust() has nothing to adjust.' );
-				}
-				else {
-					var stob = $H();
-					stob.set( styleKey, styleValue );
-					
-					redrawList.each(
-						function( el ) {
-							if ( obj === $( el.get( 'nodeId' ) ) ) {
-								var new_el = el.get( 'copy' ).clone( false );
-								
-								new_el.setStyle( stob.toObject() );
-								el.set(
-									'copy',
-									new_el
-								);
-							}
-						}
-					);
-				}
+			'getRedrawList'	: function() {
+				return redrawList;
 			},
+			'setRedrawList'	: function( list ) {
+				redrawList = list;
+			},
+// 			'adjust'	: function( obj, styleKey, styleValue ) {
+// 				if ( ! redrawList ) {
+// 					throw curvyCorners.newError( 'curvyCorners.adjust() has nothing to adjust.' );
+// 				}
+// 				else {
+// 					var stob = $H();
+// 					stob.set( styleKey, styleValue );
+// 					
+// 					redrawList.each(
+// 						function( el ) {
+// 							if ( obj === $( el.get( 'nodeId' ) ) ) {
+// 								var new_el = el.get( 'copy' ).clone( false );
+// 								
+// 								new_el.setStyle( stob.toObject() );
+// 								el.set(
+// 									'copy',
+// 									new_el
+// 								);
+// 							}
+// 						}
+// 					);
+// 				}
+// 			},
 			'handleWinResize'	: function() {
 				if ( ! blockRedraw ) {
 					curvyCorners.redraw();
@@ -610,8 +582,6 @@ var curvyObject = Class.create(
 			this.box	= box;
 			this.settings	= settings;
 			
-//			var boxWidth = this.box.getWidth();
-			
 			if ( this.settings instanceof( curvyCnrSpec ) )
 				// convert non-pixel units
 				this.spec = this.settings.cloneOn( this.box );
@@ -626,6 +596,7 @@ var curvyObject = Class.create(
 			$A([
 				'borderTopWidth', 'borderBottomWidth', 'borderLeftWidth', 'borderRightWidth',
 				'paddingTop', 'paddingBottom', 'paddingLeft', 'paddingRight',
+				'marginTop', 'marginBottom', 'marginLeft', 'marginRight',
 				'top', 'bottom', 'left', 'right'
 			]).each(
 				function( s ) {
@@ -659,7 +630,6 @@ var curvyObject = Class.create(
 			$A([ 'borderTopColor', 'borderBottomColor', 'borderLeftColor', 'borderRightColor', 'backgroundColor' ]).each(
 				function( s ) {
  					this.css.set( s, curvyUtils.formatColor( this.box.getStyle( s ) || '' ) );
-//					this.css.set( { s : this.box.getStyle( s ) } );
 				}.bind( this )
 			);
 			
@@ -719,33 +689,6 @@ var curvyObject = Class.create(
 				}
 			}
 			
-//			if ( /^(left|center|right)$/.test( bpx ) ) {
-//				switch ( RegExp.$1 ) {
-//					case 'left':
-//						bgx = '0%';
-//						break;
-//					case 'center':
-//						bgx = '50%';
-//						break;
-//					case 'right':
-//						bgx = '100%';
-//						break;
-//				}
-//			}
-//			if ( /^(top|center|bottom)$/.test( bpy ) ) {
-//				switch ( RegExp.$1 ) {
-//					case 'top':
-//						bgy = '0%';
-//						break;
-//					case 'center':
-//						bgy = '50%';
-//						break;
-//					case 'bottom':
-//						bgy = '100%';
-//						break;
-//				}
-//			}
-			
 			this.css.set( 'backgroundPositionX', bpx );
 			this.css.set( 'backgroundPositionY', bpy );
 			
@@ -760,7 +703,7 @@ var curvyObject = Class.create(
 				}
 			);
 			
-			$w('width height top bottom left right').each(
+			$w('width height top bottom left right marginTop marginBottom marginLeft marginRight').each(
 				function( b ) {
 					var n = this.css.get( b );
 					
@@ -775,11 +718,16 @@ var curvyObject = Class.create(
 			var btw = this.css.get( 'borderTopWidth' );
 			var bbw = this.css.get( 'borderBottomWidth' );
 			
+			var new_pt = Math.max( this.css.get( 'paddingTop' ) - this.topMaxRadius + btw, 0 );
+			var new_pb = Math.max( this.css.get( 'paddingBottom' ) - this.botMaxRadius + bbw, 0 );
+			
 			styles = $H(
 				{
 					'position'	: 'absolute',
-					'height'	: Math.max( ( this.css.get( 'height' ) ) - this.topMaxRadius - this.botMaxRadius, 0 ) + 'px',
-					'padding'	: '0px',
+					'height'	: Math.max( ( this.css.get( 'height' ) ) - this.topMaxRadius - this.botMaxRadius - ( curvyUtils.isQuirksMode() ? 0 : ( new_pt + new_pb ) ), 0 ) + 'px',
+					'paddingTop'	: new_pt + 'px',
+					'paddingBottom'	: new_pb + 'px',
+					'margin'	: '0px',
 					'top'		: this.topMaxRadius + 'px',
 					'left'		: '0px',
 					'right'		: '0px',
@@ -1779,6 +1727,36 @@ Element.addMethods(
 			element = $( element );
 			curvyCorners.applyCorners( settings, '#' + element.identify() );
 			return element;
+		}
+	}
+);
+
+Element.Methods.setStyle = Element.Methods.setStyle.wrap(
+	function ( origHandler, element, styleObj ) {
+		var list = curvyCorners.getRedrawList();
+		if ( element.tagName.toUpperCase() == 'DIV' && element.hasClassName( 'curvyRedraw' ) && list.length ) {
+			list.each(
+				function( el ) {
+					if ( obj === $( el.get( 'nodeId' ) ) ) {
+						var new_el = el.get( 'copy' ).clone( false );
+						
+						new_el.setStyle( styleObj );
+						el.set(
+							'copy',
+							new_el
+						);
+						
+						throw $break;
+					}
+				}
+			);
+			
+			curvyCorners.setRedrawList( list );
+			
+			return element;
+		}
+		else {
+			return origHandler( element, styleObj );
 		}
 	}
 );
