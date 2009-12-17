@@ -169,7 +169,7 @@ var curvyCnrSpec = Class.create(
 							pair.key,
 							$H(
 								{
-									'radius'	: box.getStyle( 'left' ),
+									'radius'	: px_radius,
 									'unit'		: 'px'
 								}
 							)
@@ -211,8 +211,9 @@ var curvyCnrSpec = Class.create(
 );
 
 var curvyCorners = new function() {
-	var redrawList = $A([]);
-	var blockRedraw = false;
+	var redrawList		= $A([]);
+	var blockRedraw		= false;
+	var scheduleRedraw	= false;
 	
 	var initDone = false;
 	
@@ -235,7 +236,7 @@ var curvyCorners = new function() {
 					curvyCorners.scanStyles();
 				},
 				'scanStyles'	: function() {
-					var corner_styles = $A();
+					var corner_styles = $A([]);
 					
 					$A( document.styleSheets ).each(
 						function( stylesheet ) {
@@ -345,22 +346,24 @@ var curvyCorners = new function() {
 					var numRegExp = /^[\d.]+(\w+)/;
 					var crnRegExp = /^(t|b)(r|l)$/;
 					
-					corner_styles.collect(
+					var cs = $A( corner_styles.collect(
 						function( c ) {
 							return c.get( 'elements' );
 						}
-					).flatten().uniq().each(
+					).flatten().uniq() );
+					
+					cs.each(
 						function( elem ) {
-							
 							var settings = new curvyCnrSpec();
 							
-							corner_styles.findAll(
+							var in_cs = corner_styles.findAll(
 								function( c ) {
 									return c.get( 'elements' ).include( elem );
 								}
-							).each(
+							);
+							
+							in_cs.each(
 								function( c ) {
-									
 									$A( [ 'tr', 'tl', 'bl', 'br' ] ).each(
 										function( d ) {
 											var rad = c.get( d );
@@ -418,6 +421,8 @@ var curvyCorners = new function() {
 			'applyCorners'	: function() {
 				var settings;
 				var boxCol = $A([]);
+				
+				scheduleRedraw = true;
 				
 				if ( ! arguments[0] instanceof( curvyCnrSpec ) && ! Object.isHash( arguments[0] ) && typeof( arguments[0] ) != 'object' ) {
 					throw curvyCorners.newError( "First parameter of curvyCorners.applyCorners() must be an curvyCnrSpec object or a hash object or an object." );
@@ -485,16 +490,18 @@ var curvyCorners = new function() {
 						}
 					}
 				);
+				
+				scheduleRedraw = false;
 			},
 			'redraw'	: function() {
-				if ( ! redrawList.length ) {
-					throw curvyCorners.newError( 'curvyCorners.redraw() has nothing to redraw.' );
-				}
-				
 				var oldBlockRedraw = blockRedraw;
 				blockRedraw = true;
 				
-				redrawList.each(
+				redrawList.sortBy(
+					function( o ) {
+						return $( o.get( 'nodeId' ) ).ancestors().size();
+					}
+				).reverse( false ).each(
 					function( o ) {
 						if( ! $( o.get( 'nodeId' ) ).visible() ) {
 							return; // don't resize hidden boxes
@@ -507,9 +514,9 @@ var curvyCorners = new function() {
 							throw $break;
 						}
 						
-						$( o.get( 'nodeId' ) ).immediateDescendants().each(
+						$( o.get( 'nodeId' ) ).childElements().each(
 							function( elem ) {
-								newChild.insert( elem.clone( true ) );
+								newChild.insert( elem );
 							}
 						);
 						
@@ -531,6 +538,13 @@ var curvyCorners = new function() {
 				redrawList = list;
 			},
 			'handleWinResize'	: function() {
+				if ( scheduleRedraw ) {
+					setTimeout(
+						curvyCorners.handleWinResize,
+						10
+					);
+					return;
+				}
 				if ( ! blockRedraw ) {
 					curvyCorners.redraw();
 				}
@@ -555,7 +569,7 @@ var curvyCorners = new function() {
 var curvyObject = Class.create(
 	{
 		'initialize'	: function( settings, box ) {
-			this.box	= box;
+			this.box	= $( box );
 			this.settings	= settings;
 			
 			if ( this.settings instanceof( curvyCnrSpec ) )
@@ -577,21 +591,36 @@ var curvyObject = Class.create(
 			]).each(
 				function( s ) {
 					var val = this.box.getStyle( s );
+					
+					if (
+						$A([
+							'marginTop', 'marginBottom', 'marginLeft', 'marginRight',
+							'top', 'bottom', 'left', 'right'
+						]).include( s ) &&
+						(
+							val == 'auto' ||
+							Object.isUndefined( val ) ||
+							val == null
+						)
+					) {
+						this.css.set( s, 'auto' );
+						return;
+					}
+					
 					if ( Object.isNumber( val ) ) {
 						this.css.set( s, val );
 					}
-					else if ( Object.isUndefined( val ) || val == null ) {
-						this.css.set( s, 0 );
-					}
+//					else if ( Object.isUndefined( val ) || val == null ) {
+//						this.css.set( s, null );
+//					}
 					else if ( ! Object.isString( val ) ) {
 						throw new Error('Unexpected style type: '+ s + ': ' + val );
 					}
 					else {
-						var matches = /^[-\d.]([a-z]+)$/.exec( val );
-						
-						if ( matches && matches[1] != 'px' ) {
+						if ( ! Object.isNumber( val ) && ! /px$/.test( val ) ) {
 							throw new Error( 'Unexpected unit: '+ s + ': ' + val );
 						}
+						
 						val = parseInt( val );
 						if ( ! Object.isNumber( val ) ) {
 							val = 0;
@@ -609,11 +638,14 @@ var curvyObject = Class.create(
 				}.bind( this )
 			);
 			
-			$A([ 'backgroundImage', 'backgroundRepeat', 'position' ]).each(
+			$A([ 'backgroundImage', 'backgroundRepeat', 'position', 'float' ]).each(
 				function( s ) {
 					var val = this.box.getStyle( s );
-					if ( s == 'backgroundImage' ) {
+					if ( s == 'backgroundImage' || s == 'float' ) {
 						val = ( val != 'none' ) ? val : '';
+					}
+					if ( s == 'position' ) {
+						val = ( val != 'static' ) ? val : 'relative';
 					}
 					this.css.set( s, val || '' );
 				}.bind( this )
@@ -639,32 +671,6 @@ var curvyObject = Class.create(
 				bpy = '0%';
 			}
 			
-			if ( Prototype.Browser.Opera ) {
-				bpx = parseInt( bpx );
-				if ( ! Object.isNumber( bpx ) ) {
-					bpx = '0%';
-				}
-				var tx = this.css.get( 'width' );
-				if ( bpx > tx )	{
-					bpx = '100%';
-				}
-				else {
-					bpx = ( tx / bpx * 100 ) + '%'; // convert to percentage
-				}
-				
-				bpy = parseInt( bpy );
-				if ( ! Object.isNumber( bpy ) ) {
-					bpy = '0%';
-				}
-				var ty = this.css.get( 'height' );
-				if ( bpy > ty )	{
-					bpy = '100%';
-				}
-				else {
-					bpy = ( ty / bpy * 100 ) + '%'; // convert to percentage
-				}
-			}
-			
 			this.css.set( 'backgroundPositionX', bpx );
 			this.css.set( 'backgroundPositionY', bpy );
 			
@@ -674,25 +680,42 @@ var curvyObject = Class.create(
 			var styles = $H(
 				{
 					'position'		: this.css.get( 'position' ),
+					'float'			: this.css.get( 'float' ),
 					'padding'		: '0px',
 					'backgroundColor'	: 'transparent'
 				}
 			);
 			
-			$w('width height top bottom left right marginTop marginBottom marginLeft marginRight').each(
+			var btw = this.css.get( 'borderTopWidth' );
+			var bbw = this.css.get( 'borderBottomWidth' );
+			var btw = this.css.get( 'borderLeftWidth' );
+			var bbw = this.css.get( 'borderRightWidth' );
+			
+			$w('width height marginTop marginBottom marginLeft marginRight').each(
 				function( b ) {
 					var n = this.css.get( b );
-					
-					if ( n ) {
+					if ( /^\d+$/.test( n ) ) {
 						styles.set( b, n + 'px' );
+					}
+					else {
+						styles.set( b, n );
+					}
+				}.bind( this )
+			);
+			
+			$w('top bottom left right').each(
+				function( b ) {
+					var n = this.css.get( b );
+					if ( /^-?\d+$/.test( n ) ) {
+						styles.set( b, n + 'px' );
+					}
+					else {
+						styles.set( b, n );
 					}
 				}.bind( this )
 			);
 			
 			this.wrapper = this.box.wrap( 'div' ).setStyle( styles.toObject() );
-			
-			var btw = this.css.get( 'borderTopWidth' );
-			var bbw = this.css.get( 'borderBottomWidth' );
 			
 			var new_pt = Math.max( this.css.get( 'paddingTop' ) - this.topMaxRadius + btw, 0 );
 			var new_pb = Math.max( this.css.get( 'paddingBottom' ) - this.botMaxRadius + bbw, 0 );
@@ -700,6 +723,7 @@ var curvyObject = Class.create(
 			styles = $H(
 				{
 					'position'	: 'absolute',
+					'float'		: 'none',
 					'height'	: Math.max( ( this.css.get( 'height' ) ) - this.topMaxRadius - this.botMaxRadius - ( curvyUtils.isQuirksMode() ? 0 : ( new_pt + new_pb ) ), 0 ) + 'px',
 					'paddingTop'	: new_pt + 'px',
 					'paddingBottom'	: new_pb + 'px',
@@ -743,11 +767,9 @@ var curvyObject = Class.create(
 					}
 					styles.set( 'borderBottom', ( bbw - this.botMaxRadius ) + 'px solid ' + this.css.get( 'borderBottomColor' ) );
 				}
-				
-				this.box.setStyle( styles.toObject() );
 			}
-
-			this.box.setStyle( styles.toObject() );
+			
+			this.box.setStyle( styles.toObject(), true );
 			
 			var bi = this.css.get( 'backgroundImage' );
 			
@@ -863,7 +885,8 @@ var curvyObject = Class.create(
 						'position'	: 'absolute',
 						'padding'	: '0px',
 						'height'	: this.topMaxRadius + 'px',
-						'top'		: '0px'
+						'top'		: '0px',
+						'left'		: '0px'
 					}
 				);
 			}
@@ -879,7 +902,8 @@ var curvyObject = Class.create(
 						'position'	: 'absolute',
 						'padding'	: '0px',
 						'height'	: this.botMaxRadius + 'px',
-						'bottom'	: '0px'
+						'bottom'	: '0px',
+						'left'		: '0px'
 					}
 				);
 			}
@@ -903,6 +927,25 @@ var curvyObject = Class.create(
 					
 			var tbpX = ( tlr < blw || tlr == 0 ) ? backgroundPositionX : ( backgroundPositionX - tlr + blw );
 			var bbpX = ( blr < blw || tlr == 0 ) ? backgroundPositionX : ( backgroundPositionX - blr + blw );
+			
+			var bpHash = $H(
+				{
+					'tbxw'	: tbxw,
+					'bbxw'	: bbxw,
+					'tbpX'	: tbpX,
+					'bbpX'	: bbpX,
+					'backgroundPositionX'	: backgroundPositionX,
+					'backgroundPositionY'	: backgroundPositionY,
+					'bh'			: Math.max( h - this.topMaxRadius - this.botMaxRadius, 0 )
+				}
+			);
+			
+			var mathPow = $H();
+			if ( corners.size() ) {
+				for ( var i = 0; i <= Math.max( this.topMaxRadius, this.botMaxRadius ); ++i ) {
+					mathPow.set( i, Math.pow( i, 2 ) );
+				}
+			}
 			
 			/*
 				Loop for each corner
@@ -951,16 +994,19 @@ var curvyObject = Class.create(
 					// ---------------------------------------------------- TOP
 					// IE8 bug fix???
 					var trans = this.css.get( 'opacity' );
+					
+					var brMathPow = mathPow.get( borderRadius );
+					var srMathPow = mathPow.get( specRadius );
 					// Cycle the x-axis
 					for ( var intx = 0; intx < specRadius; ++intx ) {
 						// Calculate the value of y1 which identifies the pixels inside the border
-						var y1 = ( intx + 1 >= borderRadius ) ? -1 : Math.floor( Math.sqrt( Math.pow( borderRadius, 2 ) - Math.pow( intx + 1, 2 ) ) ) - 1;
+						var y1 = ( intx + 1 >= borderRadius ) ? -1 : Math.floor( Math.sqrt( brMathPow - mathPow.get( intx + 1 ) ) ) - 1;
 						
 						var inty, outsideColor;
 						// Calculate y2 and y3 only if there is a border defined
 						if ( borderRadius != specRadius ) {
-							var y2 = ( intx >= borderRadius ) ? -1 : Math.ceil( Math.sqrt( Math.pow( borderRadius, 2 ) - Math.pow( intx, 2 ) ) );
-							var y3 = ( intx + 1 >= specRadius ) ? -1 : Math.floor( Math.sqrt( Math.pow( specRadius, 2 ) - Math.pow( ( intx + 1 ), 2 ) ) ) - 1;
+							var y2 = ( intx >= borderRadius ) ? -1 : Math.ceil( Math.sqrt( brMathPow - mathPow.get( intx ) ) );
+							var y3 = ( intx + 1 >= specRadius ) ? -1 : Math.floor( Math.sqrt( srMathPow - mathPow.get( intx + 1 ) ) ) - 1;
 							
 							// Cycle the y-axis
 							if ( this.spec.antiAlias ) {
@@ -968,14 +1014,14 @@ var curvyObject = Class.create(
 									// For each of the pixels that need anti aliasing between the foreground and border colour draw single pixel divs
 									if ( this.css.get( 'backgroundImage' ) != '' ) {
 										var borderFract = curvyUtils.pixelFraction( intx, inty, borderRadius ) * 100;
-										this.drawPixel( intx, inty, bcolor, trans, 1, newCorner, borderFract >= 30, specRadius );
+ 										this.drawPixel( intx, inty, bcolor, trans, 1, newCorner, borderFract >= 30, specRadius, cc, bpHash );
 									}
 									else if ( this.css.get( 'backgroundColor' ) !== 'transparent' ) {
 										var pixelColor = curvyUtils.blendColor( this.css.get( 'backgroundColor' ), bcolor, curvyUtils.pixelFraction( intx, inty, borderRadius ) );
-										this.drawPixel( intx, inty, pixelColor, trans, 1, newCorner, false, specRadius );
+ 										this.drawPixel( intx, inty, pixelColor, trans, 1, newCorner, false, specRadius, cc, bpHash );
 									}
 									else {
-										this.drawPixel( intx, inty, bcolor, trans >> 1, 1, newCorner, false, specRadius );
+ 										this.drawPixel( intx, inty, bcolor, trans >> 1, 1, newCorner, false, specRadius, cc, bpHash );
 									}
 								}
 								// Draw bar for the border
@@ -983,14 +1029,14 @@ var curvyObject = Class.create(
 									if ( y2 == -1 ) {
 										y2 = 0;
 									}
-									this.drawPixel( intx, y2, bcolor, trans, ( y3 - y2 + 1 ), newCorner, false, 0 );
+ 									this.drawPixel( intx, y2, bcolor, trans, ( y3 - y2 + 1 ), newCorner, false, 0, cc, bpHash );
 								}
 								outsideColor = bcolor;  // Set the colour for the outside AA curve
 								inty = y3;               // start_pos - 1 for y-axis AA pixels
 							}
 							else { // no antiAlias
 								if ( y3 > y1 ) { // NB condition was >=, changed to avoid zero-height divs
-									this.drawPixel( intx, ( y1 + 1 ), bcolor, trans, ( y3 - y1 ), newCorner, false, 0 );
+ 									this.drawPixel( intx, ( y1 + 1 ), bcolor, trans, ( y3 - y1 ), newCorner, false, 0, cc, bpHash );
 								}
 							}
 						}
@@ -999,153 +1045,23 @@ var curvyObject = Class.create(
 							inty = y1;               // start_pos - 1 for y-axis AA pixels
 						}					
 						// Calculate y4
-						var y4 = ( intx >= specRadius ) ? -1 : Math.ceil( Math.sqrt( Math.pow( specRadius, 2 ) - Math.pow( intx, 2 ) ) );
+						var y4 = ( intx >= specRadius ) ? -1 : Math.ceil( Math.sqrt( srMathPow - mathPow.get( intx ) ) );
 						// Draw bar on inside of the border with foreground colour
 						if ( y1 > -1 ) {
-							this.drawPixel( intx, 0, this.css.get( 'backgroundColor' ), trans, ( y1 + 1 ), newCorner, true, specRadius );
+ 							this.drawPixel( intx, 0, this.css.get( 'backgroundColor' ), trans, ( y1 + 1 ), newCorner, true, specRadius, cc, bpHash );
 						}
 						// Draw aa pixels?
 						if ( this.spec.antiAlias ) {
 							// Cycle the y-axis and draw the anti aliased pixels on the outside of the curve
 							while ( ++inty < y4 ) {
 								// For each of the pixels that need anti aliasing between the foreground/border colour & background draw single pixel divs
-								//  - ( curvyUtils.isQuirksMode() ? 1 : 0 )
-								this.drawPixel( intx, inty, outsideColor, ( curvyUtils.pixelFraction( intx, inty, specRadius ) * trans ), 1, newCorner, bwidth <= 0, specRadius );
+ 								this.drawPixel( intx, inty, outsideColor, ( curvyUtils.pixelFraction( intx, inty, specRadius ) * trans ), 1, newCorner, bwidth <= 0, specRadius, cc, bpHash );
 							}
 						}
 					}
 					
 					// END OF CORNER CREATION
 					// ---------------------------------------------------- END
-					
-					/*
-						Now we have a new corner we need to reposition all the pixels unless
-						the current corner is the bottom right.
-					*/
-					
-					var bh = Math.max(
-						h -
-						this.topMaxRadius -
-						this.botMaxRadius,
-						0
-					);
-// 					 - (
-// 						curvyUtils.isQuirksMode() ?
-// 						0 :
-// 						(
-// 							(
-// 								( this.topMaxRadius > 0 && btw > 0 && this.topMaxRadius < btw ) ?
-// 								( btw - this.topMaxRadius ) :
-// 								0
-// 							) +
-// 							(
-// 								( this.botMaxRadius > 0 && bbw > 0 && this.botMaxRadius < bbw ) ?
-// 								( bbw - this.botMaxRadius ) :
-// 								0
-// 							)
-// 						)
-// 					);
-					
-					// Loop through all children (pixel bars)
-					
-					newCorner.immediateDescendants().each(
-						function ( pixelBar ) {
-							// Get current top and left properties
-							var pixelBarTop		= parseInt( pixelBar.getStyle( 'top' ) );
-							var pixelBarLeft	= parseInt( pixelBar.getStyle( 'left' ) );
-							var pixelBarHeight	= parseInt( pixelBar.getHeight() );
-							
-							var styles = $H({});
-							
-							// Reposition pixels
-							if ( cc == 'tl' || cc == 'bl' ) {
-								styles.set( 'left', ( specRadius - pixelBarLeft - 1 ) + 'px' ); // Left
-							}
-							if ( cc == 'tr' || cc == 'tl' ) {
-								styles.set( 'top', ( specRadius - pixelBarHeight - pixelBarTop ) + 'px' ); // Top
-							}
-							
-							styles.set( 'backgroundRepeat', this.css.get( 'backgroundRepeat' ) );
-							
-							if ( this.css.get( 'backgroundImage' ) != '' ) {
-								
-								switch( cc ) {
-									case 'tr':
-										styles.set(
-											'backgroundPosition',
-											(
-												tbpX -
-												tbxw -
-												pixelBarLeft
-											) + 'px ' +
-											(
-												backgroundPositionY +
-												btw -
-												specRadius +
-												pixelBarHeight +
-												pixelBarTop
-											) + 'px'
-										);
-									break;
-									case 'tl':
-										styles.set(
-											'backgroundPosition',
-											(
-												tbpX +
-												pixelBarLeft +
-												1
-											) +
-											'px ' +
-											(
-												backgroundPositionY +
-												btw -
-												specRadius +
-												pixelBarHeight +
-												pixelBarTop
-											) +
-											'px'
-										);	
-									break;
-									case 'bl':
-										styles.set(
-											'backgroundPosition',
-											(
-												bbpX +
-												pixelBarLeft +
-												1
-											) + 'px ' +
-											(
-												backgroundPositionY -
-												this.topMaxRadius +
-												btw -
-												bh -
-												( ( trr < tlr ) ? this.spec.radiusDiff( 't' ) : 0 )
-											) + 'px' );
-									break;
-									case 'br':
-										styles.set(
-											'backgroundPosition',
-											(
-												bbpX -
-												bbxw -
-												pixelBarLeft
-											) + 'px ' +
-											(
-												backgroundPositionY -
-												this.topMaxRadius +
-												btw -
-												bh -
-												( ( brr < blr ) ? this.spec.radiusDiff( 'b' ) : 0 )
-											) + 'px'
-										);
-									//break;
-								}
-							}
-							
-							pixelBar.setStyle( styles.toObject() );
-							
-						}.bind( this )
-					);
 				}.bind( this )
 			);					
 			
@@ -1369,7 +1285,8 @@ var curvyObject = Class.create(
 									this.box.setStyle(
 										{
 											'backgroundPosition'	: backgroundPositionX + 'px ' + ( backgroundPositionY - this.topMaxRadius + btw ) + 'px'
-										}
+										},
+										true
 									);
 								}
 							}
@@ -1429,29 +1346,110 @@ var curvyObject = Class.create(
 			this.wrapper.addClassName( 'cornerWrapper' );
 		},
 		// append a pixel B to newCorner
-		'drawPixel'	: function ( intx, inty, color, transAmount, height, newCorner, image, cornerRadius ) {
+		'drawPixel'	: function ( intx, inty, color, transAmount, height, newCorner, setBgImage, specRadius, cc, bpHash ) {
 			var styles = $H(
 				{
-					'height'		: height,
+					'height'		: height + 'px',
 					'width'			: '1px',
 					'position'		: 'absolute',
 					'fontSize'		: '1px',
 					'overflow'		: 'hidden',
 					'backgroundColor'	: color,
-					'top'			: inty + 'px',
-					'left'			: intx + 'px',
 					'opacity'		: transAmount
 				}
 			);
 			
-			// Don't apply background image to border pixels
-			if ( image && this.css.get( 'backgroundImage' ) != "" ) {
-				styles.update(
-					{
-						'backgroundImage'	: this.css.get( 'backgroundImage' ),
-						'backgroundPosition'	: '-' + ( this.css.get( 'width' ) - cornerRadius + intx + this.css.get( 'borderLeftWidth' ) ) + 'px -' + ( this.css.get( 'height' ) + this.topMaxRadius + inty - this.css.get( 'borderTopWidth' ) ) + 'px'
-					}
-				);
+			// Reposition pixels
+			if ( cc == 'tl' || cc == 'bl' ) {
+				styles.set( 'left', ( this.spec.getCorner( cc + 'R' ) - intx - 1 ) + 'px' ); // Left
+			}
+			else {
+				styles.set( 'left', intx + 'px' ); // Left
+			}
+			if ( cc == 'tr' || cc == 'tl' ) {
+				styles.set( 'top', ( this.spec.getCorner( cc + 'R' ) - height - inty ) + 'px' ); // Top
+			}
+			else {
+				styles.set( 'top', inty + 'px' ); // Top
+			}
+			
+			styles.set( 'backgroundRepeat', this.css.get( 'backgroundRepeat' ) );
+			
+			if ( setBgImage && this.css.get( 'backgroundImage' ) != '' ) {
+				
+				styles.set( 'backgroundImage', this.css.get( 'backgroundImage' ) );
+				
+				switch( cc ) {
+					case 'tr':
+						styles.set(
+							'backgroundPosition',
+							(
+								bpHash.get( 'tbpX' ) -
+								bpHash.get( 'tbxw' ) -
+								intx
+							) + 'px ' +
+							(
+								bpHash.get( 'backgroundPositionY' ) +
+								this.css.get( 'borderTopWidth' ) -
+								this.spec.getCorner( cc + 'R' ) +
+								height +
+								inty
+							) + 'px'
+						);
+					break;
+					case 'tl':
+						styles.set(
+							'backgroundPosition',
+							(
+								bpHash.get( 'tbpX' ) +
+								intx +
+								1
+							) +
+							'px ' +
+							(
+								bpHash.get( 'backgroundPositionY' ) +
+								this.css.get( 'borderTopWidth' ) -
+								this.spec.getCorner( cc + 'R' ) +
+								height +
+								inty
+							) +
+							'px'
+						);	
+					break;
+					case 'bl':
+						styles.set(
+							'backgroundPosition',
+							(
+								bpHash.get( 'bbpX' ) +
+								intx +
+								1
+							) + 'px ' +
+							(
+								bpHash.get( 'backgroundPositionY' ) -
+								this.topMaxRadius +
+								this.css.get( 'borderTopWidth' ) -
+								bpHash.get( 'bh' ) -
+								( ( this.spec.getCorner( 'trR' ) < this.spec.getCorner( 'tlR' ) ) ? this.spec.radiusDiff( 't' ) : 0 )
+							) + 'px' );
+					break;
+					case 'br':
+						styles.set(
+							'backgroundPosition',
+							(
+								bpHash.get( 'bbpX' ) -
+								bpHash.get( 'bbxw' ) -
+								intx
+							) + 'px ' +
+							(
+								bpHash.get( 'backgroundPositionY' ) -
+								this.topMaxRadius +
+								this.css.get( 'borderTopWidth' ) -
+								bpHash.get( 'bh' ) -
+								( ( this.spec.getCorner( 'brR' ) < this.spec.getCorner( 'blR' ) ) ? this.spec.radiusDiff( 'b' ) : 0 )
+							) + 'px'
+						);
+					//break;
+				}
 			}
 			
 			var pixel = new Element( 'b' );
@@ -1708,12 +1706,12 @@ Element.addMethods(
 );
 
 Element.Methods.setStyle = Element.Methods.setStyle.wrap(
-	function ( origHandler, element, styleObj ) {
+	function ( origHandler, element, styleObj, useOrig ) {
 		var list = curvyCorners.getRedrawList();
-		if ( element.tagName.toUpperCase() == 'DIV' && element.hasClassName( 'curvyRedraw' ) && list.length ) {
+		if ( element.tagName.toUpperCase() == 'DIV' && element.hasClassName( 'curvyRedraw' ) && list.length && ! useOrig ) {
 			list.each(
 				function( el ) {
-					if ( obj === $( el.get( 'nodeId' ) ) ) {
+					if ( element === $( el.get( 'nodeId' ) ) ) {
 						var new_el = el.get( 'copy' ).clone( false );
 						
 						new_el.setStyle( styleObj );
