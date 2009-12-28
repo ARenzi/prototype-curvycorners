@@ -610,9 +610,6 @@ var curvyObject = Class.create(
 					if ( Object.isNumber( val ) ) {
 						this.css.set( s, val );
 					}
-//					else if ( Object.isUndefined( val ) || val == null ) {
-//						this.css.set( s, null );
-//					}
 					else if ( ! Object.isString( val ) ) {
 						throw new Error('Unexpected style type: '+ s + ': ' + val );
 					}
@@ -1031,8 +1028,8 @@ var curvyObject = Class.create(
 									}
  									this.drawPixel( intx, y2, bcolor, trans, ( y3 - y2 + 1 ), newCorner, false, 0, cc, bpHash );
 								}
-								outsideColor = bcolor;  // Set the colour for the outside AA curve
-								inty = y3;               // start_pos - 1 for y-axis AA pixels
+								outsideColor = bcolor; // Set the colour for the outside AA curve
+								inty = y3; // start_pos - 1 for y-axis AA pixels
 							}
 							else { // no antiAlias
 								if ( y3 > y1 ) { // NB condition was >=, changed to avoid zero-height divs
@@ -1041,8 +1038,8 @@ var curvyObject = Class.create(
 							}
 						}
 						else {
-							outsideColor = this.css.get( 'backgroundColor' );  // Set the colour for the outside curve
-							inty = y1;               // start_pos - 1 for y-axis AA pixels
+							outsideColor = this.css.get( 'backgroundColor' ); // Set the colour for the outside curve
+							inty = y1; // start_pos - 1 for y-axis AA pixels
 						}					
 						// Calculate y4
 						var y4 = ( intx >= specRadius ) ? -1 : Math.ceil( Math.sqrt( srMathPow - mathPow.get( intx ) ) );
@@ -1429,7 +1426,8 @@ var curvyObject = Class.create(
 								this.topMaxRadius +
 								this.css.get( 'borderTopWidth' ) -
 								bpHash.get( 'bh' ) -
-								( ( this.spec.getCorner( 'trR' ) < this.spec.getCorner( 'tlR' ) ) ? this.spec.radiusDiff( 't' ) : 0 )
+								( ( this.spec.getCorner( 'trR' ) < this.spec.getCorner( 'tlR' ) ) ? this.spec.radiusDiff( 't' ) : 0 ) -
+								inty
 							) + 'px' );
 					break;
 					case 'br':
@@ -1445,7 +1443,8 @@ var curvyObject = Class.create(
 								this.topMaxRadius +
 								this.css.get( 'borderTopWidth' ) -
 								bpHash.get( 'bh' ) -
-								( ( this.spec.getCorner( 'brR' ) < this.spec.getCorner( 'blR' ) ) ? this.spec.radiusDiff( 'b' ) : 0 )
+								( ( this.spec.getCorner( 'brR' ) < this.spec.getCorner( 'blR' ) ) ? this.spec.radiusDiff( 'b' ) : 0 ) -
+								inty
 							) + 'px'
 						);
 					//break;
