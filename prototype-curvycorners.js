@@ -1,6 +1,6 @@
 /*
 
-Copyright (c) 2009 Merten Falk (http://www.aequinoctium.org/)
+Copyright (c) 2009, 2010 Merten Falk (http://www.aequinoctium.org/)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -219,6 +219,8 @@ var curvyCorners = new function() {
 	
 	var REQUIRED_PROTOTYPE = '1.6.1';
 	
+	var VERSION = '0.02';
+	
 	var ret = $H({});
 	
 	if ( ! Prototype.Browser.WebKit && ! Prototype.Browser.Gecko ) {
@@ -406,6 +408,9 @@ var curvyCorners = new function() {
 				) {
 					throw curvyCorners.newError( 'prototype-curvycorners.js requires the Prototype JavaScript framework >= ' + REQUIRED_PROTOTYPE );
 				}
+			},
+			'getVersion'	: function() {
+				return VERSION;
 			},
 			/*
 			Usage:
@@ -989,7 +994,6 @@ var curvyObject = Class.create(
 					
 					// THE FOLLOWING BLOCK OF CODE CREATES A ROUNDED CORNER
 					// ---------------------------------------------------- TOP
-					// IE8 bug fix???
 					var trans = this.css.get( 'opacity' );
 					
 					var brMathPow = mathPow.get( borderRadius );
